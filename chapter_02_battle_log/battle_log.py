@@ -1,7 +1,8 @@
-from models import BattleEvent
+from models import BattleEvent, EventType
 from collections.abc import Iterable, Iterator
 from typing import overload, Union
 from dataclasses import dataclass
+from bisect import bisect_left, bisect_right
 
 @dataclass(frozen=True)
 class BattleLog:
@@ -47,6 +48,38 @@ class BattleLog:
     
     def __repr__(self) -> str:
         return f"BattleLog(count={len(self.logs)}, events={self.logs!r})"
+    
+    def by_type(self, event_type: EventType) -> 'BattleLog':
+        return BattleLog(event for event in self.logs if event.event_type == event_type)
+    
+    def by_actor(self, actor: str) -> 'BattleLog':
+        return BattleLog(event for event in self.logs if event.actor == actor)
+    
+    def by_target(self, target: str) -> 'BattleLog':
+        return BattleLog(event for event in self.logs if event.target == target)
+    
+    def by_tag(self, tag: str) -> 'BattleLog':
+        return BattleLog(event for event in self.logs if tag in event.tags)
+    
+    def between(self, start: float, end: float) -> 'BattleLog':
+        if start < 0:
+            raise ValueError(f"The parameter 'start' must be non-negative: {start}")
+        if end < 0:
+            raise ValueError(f"The parameter 'end' must be non-negative: {end}")
+        if start > end:
+            raise ValueError(f"The parameter 'start' cannot be larger than 'end': {start} > {end}")
+        left = bisect_left(self.logs, start, key=lambda log: log.timestamp)
+        right = bisect_right(self.logs, end, key=lambda log: log.timestamp)
+        return BattleLog(self.logs[left:right])
+
+    def last(self, limit: int = 3) -> 'BattleLog':
+        if limit < 0:
+            raise ValueError(f"The parameter 'limit' must be non-negative: {limit}")
+        if limit == 0:
+            return BattleLog()
+        return BattleLog(self.logs[-limit:])
+
+
         
     
         
