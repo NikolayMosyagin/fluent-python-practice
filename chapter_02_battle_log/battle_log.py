@@ -1,19 +1,22 @@
 from models import BattleEvent
 from collections.abc import Iterable, Iterator
 from typing import overload, Union
+from dataclasses import dataclass
 
+@dataclass(frozen=True)
 class BattleLog:
-    logs: tuple[BattleEvent, ...]
+    logs: tuple[BattleEvent, ...] | Iterable[BattleEvent] | None = None
 
-    def __init__(self, source: Iterable[BattleEvent] | None = None):
-        if source is None:
-            self.logs = tuple()
+    def __post_init__(self):
+        if self.logs is None:
+            object.__setattr__(self, 'logs', tuple())
             return
-        
-        self.logs = tuple(source)
-        if not all(self.logs[i - 1].timestamp <= self.logs[i].timestamp for i in range(1, len(self.logs))):
+
+        final_logs = tuple(self.logs)
+        if not all(final_logs[i - 1].timestamp <= final_logs[i].timestamp for i in range(1, len(final_logs))):
             raise ValueError('The source must be in chronological order by time.')
-    
+        object.__setattr__(self, 'logs', final_logs)
+
     def __len__(self) -> int:
         return len(self.logs)
     
@@ -37,14 +40,13 @@ class BattleLog:
     def __reversed__(self) -> Iterator[BattleEvent]:
         return reversed(self.logs)
     
-    def __contains__(self, item: BattleEvent) -> bool:
+    def __contains__(self, item: object) -> bool:
         if isinstance(item, BattleEvent):
             return item in self.logs
         return False
     
     def __repr__(self) -> str:
-        content = ", ".join((repr(item) for item in self.logs))
-        return f"BattleLog(({content}))"
+        return f"BattleLog(count={len(self.logs)}, events={self.logs!r})"
         
     
         
