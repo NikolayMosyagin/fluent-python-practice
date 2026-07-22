@@ -3,6 +3,8 @@ from collections.abc import Iterable, Iterator
 from typing import overload, Union
 from dataclasses import dataclass
 from bisect import bisect_left, bisect_right
+from collections import Counter
+from collections import defaultdict
 
 @dataclass(frozen=True)
 class BattleLog:
@@ -78,6 +80,29 @@ class BattleLog:
         if limit == 0:
             return BattleLog()
         return BattleLog(self.logs[-limit:])
+    
+    def count_by_type(self) -> Counter[EventType]:
+        return Counter(event.event_type for event in self.logs)
+    
+    def total_value(self, event_type: EventType) -> int:
+        return sum(0 if event.value is None else event.value for event in self.logs if event.event_type == event_type)
+    
+    def participants(self) -> frozenset[str]:
+        actors = frozenset(event.actor for event in self.logs)
+        return actors.union(event.target for event in self.logs)
+    
+    def group_by_actor(self) -> dict[str, 'BattleLog']:
+        groups: defaultdict[str, list[BattleEvent]] = defaultdict(list)
+        for event in self.logs:
+            groups[event.actor].append(event)
+        result: dict[str, BattleLog] = {}
+        for key, value in groups.items():
+            result[key] = BattleLog(value)
+        return result
+
+
+    
+
 
 
         

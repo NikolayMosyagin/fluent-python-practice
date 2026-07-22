@@ -47,7 +47,7 @@ def events_valid_6() -> list[BattleEvent]:
             event_type=EventType.DAMAGE,
             actor='knight',
             target='Orc',
-            value=20,
+            value=30,
             tags={'melee'}
         ),
         BattleEvent(
@@ -250,6 +250,57 @@ def test_last_battle_log(log6: BattleLog, events_valid_6: list[BattleEvent]):
     assert log_last2[0] is events_valid_6[-1]
     log_last3 = log6.last()
     assert list(log_last3) == events_valid_6[3:]
+
+def test_count_by_type(log6: BattleLog):
+    count_by_type0 = log6.count_by_type()
+    assert count_by_type0[EventType.DAMAGE] == 3
+    assert count_by_type0[EventType.HEAL] == 1
+    assert count_by_type0[EventType.DEBUFF] == 1
+    assert count_by_type0[EventType.BUFF] == 1
+    assert EventType.DEATH not in count_by_type0
+    
+    empty = BattleLog()
+    assert empty.count_by_type() == dict()
+
+def test_total_value(log6: BattleLog):
+    assert log6.total_value(EventType.DAMAGE) == 150
+    assert log6.total_value(EventType.BUFF) == 0
+    assert log6.total_value(EventType.DEATH) == 0
+    empty = BattleLog()
+    assert empty.total_value(EventType.DAMAGE) == 0
+
+def test_participants(log6: BattleLog):
+    result = log6.participants()
+    assert isinstance(result, frozenset) and all(isinstance(value, str) for value in result)
+    assert result == frozenset(('Knight', 'Orc', 'knight', 'Wizard', 'Jinn', 'Troll', 'Shaman'))
+
+    empty = BattleLog()
+    assert empty.participants() == frozenset()
+
+def test_group_by_actor(log6: BattleLog, events_valid_6: list[BattleEvent]):
+    result = log6.group_by_actor()
+    assert isinstance(result, dict) and all(isinstance(value, BattleLog) for value in result.values())
+    assert {'Knight', 'knight', 'Wizard', 'Jinn', 'Shaman'} == set(result)
+
+    log_Knight = result['Knight']
+    log_knight = result['knight']
+    assert log_Knight is not log_knight
+    assert log_Knight[0] == events_valid_6[0]
+    assert log_Knight[0] is events_valid_6[0]
+
+    log_wizard = result['Wizard']
+    assert list(log_wizard) == [events_valid_6[2], events_valid_6[4]]
+    assert all(log_wizard[i - 1].timestamp < log_wizard[i].timestamp for i in range(1, len(log_wizard)))
+    assert 'Orc' not in result
+
+    with pytest.raises(KeyError):
+        result["Unknown"]
+
+    result.clear()
+    assert len(log6) == 6
+    assert BattleLog().group_by_actor() == {}
+
+
 
 
     
