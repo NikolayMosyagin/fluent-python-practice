@@ -50,6 +50,11 @@ class BattleLog:
     
     def __repr__(self) -> str:
         return f"BattleLog(count={len(self.logs)}, events={self.logs!r})"
+
+    def __add__(self, other: 'BattleLog') -> 'BattleLog':
+        if not isinstance(other, BattleLog):
+            return NotImplemented
+        return BattleLog(self._iter_merged(other))
     
     def by_type(self, event_type: EventType) -> 'BattleLog':
         return BattleLog(event for event in self.logs if event.event_type == event_type)
@@ -99,6 +104,32 @@ class BattleLog:
         for key, value in groups.items():
             result[key] = BattleLog(value)
         return result
+
+    def merge(self, other: 'BattleLog') -> 'BattleLog':
+        if not isinstance(other, BattleLog):
+            raise TypeError("Parameter 'other' must be of type 'BattleLog'")
+        return BattleLog(self._iter_merged(other))
+
+    def _iter_merged(self, other: 'BattleLog') -> Iterator[BattleEvent]:
+        pos1, pos2 = 0, 0
+        n, m = len(self.logs), len(other.logs)
+        while pos1 < n or pos2 < m:
+            if pos1 == n:
+                yield other.logs[pos2]
+                pos2 += 1
+                continue
+            if pos2 == m:
+                yield self.logs[pos1]
+                pos1 += 1
+                continue
+            e1, e2 = self.logs[pos1], other.logs[pos2]
+            if e1.timestamp <= e2.timestamp:
+                yield e1
+                pos1 += 1
+            else:
+                yield e2
+                pos2 += 1
+
 
 
     

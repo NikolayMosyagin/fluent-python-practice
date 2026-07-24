@@ -300,6 +300,170 @@ def test_group_by_actor(log6: BattleLog, events_valid_6: list[BattleEvent]):
     assert len(log6) == 6
     assert BattleLog().group_by_actor() == {}
 
+def test_merge_battle_log():
+    empty1 = BattleLog()
+    empty2 = BattleLog()
+    assert list(empty1.merge(empty2)) == []
+
+    with pytest.raises(TypeError):
+        empty1.merge(None)
+    with pytest.raises(TypeError):
+        empty1.merge(list())
+
+    log1 = BattleLog((
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.DAMAGE,
+            actor="Knight",
+            target='Orc',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=14.2,
+            event_type=EventType.BUFF,
+            actor="Knight",
+            target="Shaman"
+        ))
+    )
+    assert list(empty1.merge(log1)) == list(log1)
+    assert list(log1.merge(empty2)) == list(log1)
+    assert log1.merge(empty1) is not log1
+
+    log2 = BattleLog((
+        BattleEvent(
+            timestamp=13.0,
+            event_type=EventType.DAMAGE,
+            actor="Knight",
+            target='Orc',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=15.2,
+            event_type=EventType.BUFF,
+            actor="Knight",
+            target="Shaman"
+        )
+    ))
+    r_log = log1.merge(log2)
+    assert isinstance(r_log, BattleLog)
+    assert list(r_log) == list((log1[0], log2[0], log1[1], log2[1]))
+    assert r_log[0] is log1[0] and r_log[1] is log2[0] and r_log[2] is log1[1] and r_log[3] is log2[1]
+    assert len(log1) == 2 and len(log2) == 2
+
+    log3 = BattleLog((
+        BattleEvent(
+            timestamp=125.0,
+            event_type=EventType.DAMAGE,
+            actor="Knight",
+            target='Orc',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=127.2,
+            event_type=EventType.BUFF,
+            actor="Knight",
+            target="Shaman"
+        )
+    ))
+    r_log2 = log1.merge(log3)
+    assert list(r_log2) == list((log1[0], log1[1], log3[0], log3[1]))
+    r_log3 = log3.merge(log1)
+    assert list(r_log3) == list((log1[0], log1[1], log3[0], log3[1]))
+
+    log4 = BattleLog((
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.BUFF,
+            actor="Orc",
+            target='Shaman',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=14.2,
+            event_type=EventType.HEAL,
+            actor="Wizard",
+            target="Knight"
+        )
+    ))
+    r_log4 = log4.merge(log1)
+    assert list(r_log4) == list((log4[0], log1[0], log4[1], log1[1]))
+    log5 = BattleLog((
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.BUFF,
+            actor="Orc",
+            target='Shaman',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.HEAL,
+            actor="Wizard",
+            target="Knight"
+        )
+    ))
+    log6 = BattleLog((
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.DAMAGE,
+            actor="Orc",
+            target='Shaman',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.BUFF,
+            actor="Wizard",
+            target="Knight"
+        )
+    ))
+    assert list(log5.merge(log6)) == list((log5[0], log5[1], log6[0], log6[1]))
+
+def test_add_battle_logs():
+    log1 = BattleLog((
+        BattleEvent(
+            timestamp=10.0,
+            event_type=EventType.DAMAGE,
+            actor="Knight",
+            target='Orc',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=14.2,
+            event_type=EventType.BUFF,
+            actor="Knight",
+            target="Shaman"
+        ))
+    )
+    log2 = BattleLog((
+        BattleEvent(
+            timestamp=13.0,
+            event_type=EventType.DAMAGE,
+            actor="Knight",
+            target='Orc',
+            value=20
+        ),
+        BattleEvent(
+            timestamp=15.2,
+            event_type=EventType.BUFF,
+            actor="Knight",
+            target="Shaman"
+        )
+    ))
+
+    with pytest.raises(TypeError):
+        log1 + 10
+
+    r_log = log1 + log2
+    assert list(r_log) == list(log1.merge(log2))
+    assert isinstance(r_log, BattleLog)
+    assert r_log is not log1 and r_log is not log2
+    
+
+
+
+
+
 
 
 
