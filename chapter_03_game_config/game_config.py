@@ -57,6 +57,11 @@ class GameConfig(Mapping[str, object]):
     def __len__(self):
         return len(self.data)
 
+    def __or__(self, other: 'GameConfig') -> 'GameConfig':
+        if not isinstance(other, GameConfig):
+            return NotImplemented
+        return self._merge_internal(other)
+
     def added_keys(self, other: 'GameConfig') -> frozenset[str]:
         if not isinstance(other, GameConfig):
             raise TypeError("The parameter 'other' must have a type 'GameConfig'")
@@ -94,4 +99,10 @@ class GameConfig(Mapping[str, object]):
         layer = ConfigLayer(name, values)
         return GameConfig(self.layers + (layer, ))
 
+    def merge(self, other: 'GameConfig') -> 'GameConfig':
+        if not isinstance(other, GameConfig):
+            raise TypeError("The parameter 'other' must have a type 'GameConfig'")
+        return self._merge_internal(other)
     
+    def _merge_internal(self, other: 'GameConfig') -> 'GameConfig':
+        return GameConfig(self.layers + other.layers)

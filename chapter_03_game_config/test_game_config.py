@@ -293,6 +293,123 @@ def test_with_overrides_game_config(layer1: ConfigLayer):
     assert dict(updated) == layer1.values | override_data2
 
 
+def test_merge_game_config(layer1: ConfigLayer, layer5: ConfigLayer):
+    config1 = GameConfig((layer1, ))
+    with pytest.raises(TypeError):
+        config1.merge([1, 2, 3])
+    config2 = GameConfig((ConfigLayer('layer1', {}), ))
+    with pytest.raises(ValueError):
+        config1.merge(config2)
+
+    empty_config1 = GameConfig()
+    empty_config2 = GameConfig()
+    res = empty_config1.merge(empty_config2)
+    assert dict(res) == {}
+    assert len(res.layers) == 0
+    assert res is not empty_config1 and res is not empty_config2
+
+    res = config1.merge(empty_config1)
+    assert dict(res) == dict(layer1.values)
+    assert len(res.layers) == 1
+    assert res.layer_names() == tuple((layer1.name, ))
+    assert res is not config1 and res is not empty_config1
+
+    res = empty_config1.merge(config1)
+    assert dict(res) == dict(layer1.values)
+    assert len(res.layers) == 1
+    assert res.layer_names() == tuple((layer1.name, ))
+    assert res is not config1 and res is not empty_config1
+
+    config5 = GameConfig((layer5, ))
+    res = config1.merge(config5)
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer1.name, layer5.name))
+    assert res.get_layer('layer5') is layer5
+    assert res.get_layer('layer1') is layer1
+    assert res is not config1 and res is not config5
+    assert list(res.data.keys()) == ['difficulty', 'level', 'pairs', 'mission']
+    assert res['level'] == 20 and res['pairs'] == None
+    assert dict(config1.data) == dict(layer1.values)
+    assert dict(config5.data) == dict(layer5.values)
+    res2 = config5.merge(config1)
+    assert dict(res.data) != dict(res2.data)
+
+    other_layer = ConfigLayer('other_layer', {'fullscreen': True, 'language': 'en'})
+    other_config = GameConfig((other_layer, ))
+    res = config1.merge(other_config)
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer1.name, other_layer.name))
+    assert res.get_layer('layer1') is layer1
+    assert res.get_layer('other_layer') is other_layer
+    assert res is not config1 and res is not other_config
+    assert list(res.data.keys()) == ['difficulty', 'level', 'pairs', 'fullscreen', 'language']
+
+def test_operator_or_game_config(layer1: ConfigLayer, layer5: ConfigLayer):
+    config1 = GameConfig((layer1, ))
+    with pytest.raises(TypeError):
+        config1 | 10
+    config2 = GameConfig((ConfigLayer('layer1', {}), ))
+    with pytest.raises(ValueError):
+        config1 | config2
+
+    empty_config1 = GameConfig()
+    empty_config2 = GameConfig()
+    res = empty_config1 | empty_config2
+    assert dict(res) == {}
+    assert len(res.layers) == 0
+    assert res is not empty_config1 and res is not empty_config2
+
+    res = config1 | empty_config1
+    assert dict(res) == dict(layer1.values)
+    assert len(res.layers) == 1
+    assert res.layer_names() == tuple((layer1.name, ))
+    assert res is not config1 and res is not empty_config1
+
+    res = empty_config1 | config1
+    assert dict(res) == dict(layer1.values)
+    assert len(res.layers) == 1
+    assert res.layer_names() == tuple((layer1.name, ))
+    assert res is not config1 and res is not empty_config1
+
+    config5 = GameConfig((layer5, ))
+    res = config1 | config5
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer1.name, layer5.name))
+    assert res.get_layer('layer5') is layer5
+    assert res.get_layer('layer1') is layer1
+    assert res is not config1 and res is not config5
+    assert list(res.data.keys()) == ['difficulty', 'level', 'pairs', 'mission']
+    assert res['level'] == 20 and res['pairs'] == None
+    assert dict(config1.data) == dict(layer1.values)
+    assert dict(config5.data) == dict(layer5.values)
+    res2 = config5 | config1
+    assert dict(res.data) != dict(res2.data)
+
+    res_merge = config1.merge(config5)
+    res2_merge = config5.merge(config1)
+    assert dict(res.data) == dict(res_merge.data)
+    assert dict(res2.data) == dict(res2_merge.data)
+    assert res.layers == res_merge.layers
+    assert res2.layers == res2_merge.layers
+    assert res.layer_names() == res_merge.layer_names()
+    assert res2.layer_names() == res2_merge.layer_names()
+
+    other_layer = ConfigLayer('other_layer', {'fullscreen': True, 'language': 'en'})
+    other_config = GameConfig((other_layer, ))
+    res = config1 | other_config
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer1.name, other_layer.name))
+    assert res.get_layer('layer1') is layer1
+    assert res.get_layer('other_layer') is other_layer
+    assert res is not config1 and res is not other_config
+    assert list(res.data.keys()) == ['difficulty', 'level', 'pairs', 'fullscreen', 'language']
+
+
+
+
+    
+
+
 
 
     
