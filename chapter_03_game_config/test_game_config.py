@@ -8,7 +8,7 @@ def layer1() -> ConfigLayer:
 
 @pytest.fixture
 def layer2() -> ConfigLayer:
-    return ConfigLayer("layer2", {'game': 'knights', 'missions': 10, 'units': 10})
+    return ConfigLayer("layer2", {'game': 'knights', 'mission': 10, 'units': 10})
 
 @pytest.fixture
 def layer3() -> ConfigLayer:
@@ -17,6 +17,10 @@ def layer3() -> ConfigLayer:
 @pytest.fixture
 def layer5() -> ConfigLayer:
     return ConfigLayer('layer5', {'difficulty': 'normal', 'level': 20, 'mission': 10.0})
+
+@pytest.fixture
+def layer6() -> ConfigLayer:
+    return ConfigLayer('layer6', {'difficulty': 'hard', 'fullscreen': True, 'language': 'en', 'Unknown': None})
 
 
 def test_config_layer():
@@ -404,33 +408,108 @@ def test_operator_or_game_config(layer1: ConfigLayer, layer5: ConfigLayer):
     assert res is not config1 and res is not other_config
     assert list(res.data.keys()) == ['difficulty', 'level', 'pairs', 'fullscreen', 'language']
 
+def test_without_layer_game_config(layer1: ConfigLayer, layer5: ConfigLayer, layer6: ConfigLayer):
+    config = GameConfig((layer1, layer5, layer6))
+    with pytest.raises(TypeError):
+        config.without_layer([1, 2, 3])
+    with pytest.raises(KeyError):
+        config.without_layer('layer2')
+
+    empty_config = GameConfig()
+    with pytest.raises(KeyError):
+        empty_config.without_layer('layer1')
+
+    config1 = GameConfig((layer1, ))
+    res = config1.without_layer('layer1')
+    assert len(res.layers) == 0
+    assert res.layer_names() == tuple()
+    assert dict(res.data) == {}
+    assert res is not config1
+
+    res = config.without_layer('layer1')
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer5.name, layer6.name))
+    assert dict(res.data) == dict(GameConfig((layer5, layer6)).data)
+
+    res = config.without_layer('layer5')
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer1.name, layer6.name))
+    assert dict(res.data) == dict(GameConfig((layer1, layer6)).data)
+
+    res = config.without_layer('layer6')
+    assert len(res.layers) == 2
+    assert res.layer_names() == tuple((layer1.name, layer5.name))
+    assert res.get_layer(layer1.name) is layer1 and res.get_layer(layer5.name) is layer5
+    assert dict(res.data) == dict(GameConfig((layer1, layer5)).data)
+    assert res['difficulty'] == 'normal'
+    assert 'language' not in res
+    assert res is not config
+    assert dict(config.data) == dict(GameConfig((layer1, layer5, layer6)).data)
+
+def test_replace_layer_game_config(layer1: ConfigLayer, layer5: ConfigLayer, layer6: ConfigLayer):
+    config = GameConfig((layer1, layer5, layer6))
+    with pytest.raises(TypeError):
+        config.replace_layer(10, {'difficulty': 'hard'})
+    with pytest.raises(KeyError):
+        config.replace_layer('layer2', {'difficulty': 'hard'})
+    with pytest.raises(TypeError):
+        config.replace_layer('layer1', ['difficulty', 'hard'])
+    with pytest.raises(TypeError):
+        config.replace_layer('layer1', {5: 'test'})
+
+    replace_values = {'language':'ru', 'level': 30, 'difficulty': 'easy'}
+    res = config.replace_layer('layer5', replace_values)
+    assert isinstance(res, GameConfig)
+    assert res.get_layer('layer5') is not layer5
+    assert res.get_layer('layer1') is layer1
+    assert res.get_layer('layer6') is layer6
+    assert res['level'] == 30
+    assert res.get_layer('layer5').values['difficulty'] == 'easy'
+    assert res['difficulty'] == 'hard'
+    assert dict(res.data) == dict(GameConfig((layer1, res.get_layer('layer5'), layer6)).data)
+    assert dict(config.data) == dict(GameConfig((layer1, layer5, layer6)))
+    assert res.layers == tuple((layer1, res.get_layer('layer5'), layer6))
+    replace_values['level'] = 100
+    assert res['level'] == 30
+
+    config = GameConfig((layer1, ))
+    res = config.replace_layer('layer1', {'update': 10, 'new_game': False})
+    assert res['update'] == 10
+    assert 'difficulty' not in res
+
+
+def test_source_of_game_config(layer1: ConfigLayer, layer5: ConfigLayer, layer6: ConfigLayer, layer2: ConfigLayer):
+    config = GameConfig((layer1, layer5, layer6))
+    with pytest.raises(TypeError):
+        config.source_of(5)
+    with pytest.raises(KeyError):
+        config.source_of('test_key')
+    res = config.source_of('mission')
+    assert isinstance(res, str)
+    assert res == layer5.name
+    assert dict(config.data) == dict(GameConfig((layer1, layer5, layer6)).data)
+    res = config.source_of('Unknown')
+    assert res == layer6.name
+    res = config.source_of('pairs')
+    assert res == layer1.name
+    res = config.source_of('difficulty')
+    assert res == layer6.name
+
+    nconfig = config.without_layer('layer5')
+    res = nconfig.source_of('level')
+    assert res == layer1.name
+
+    nconfig = config.replace_layer('layer5', {'pairs':'update'})
+    res = nconfig.source_of('pairs')
+    assert res == layer5.name
+
+    nconfig = config.merge(GameConfig((layer2,)))
+    res = nconfig.source_of('mission')
+    assert res == layer2.name
+
+    nconfig = config.with_overrides('layer2', {'fullscreen': False})
+    res = nconfig.source_of('fullscreen')
+    assert res == 'layer2'
 
 
 
-    
-
-
-
-
-    
-    
-
-    
-
-    
-
-
-
-
-
-
-    
-
-    
-
-    
-
-
-    
-
-    

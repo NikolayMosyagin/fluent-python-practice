@@ -103,6 +103,32 @@ class GameConfig(Mapping[str, object]):
         if not isinstance(other, GameConfig):
             raise TypeError("The parameter 'other' must have a type 'GameConfig'")
         return self._merge_internal(other)
+
+    def without_layer(self, layer_name: str) -> 'GameConfig':
+        if not isinstance(layer_name, str):
+            raise TypeError("The parameter 'layer_name' must have a type 'str'")
+        index = next((i for i in range(len(self.layers)) if self.layers[i].name == layer_name), None)
+        if index is None:
+            raise KeyError(f'Layer named {layer_name} does not exist.')
+        return GameConfig(self.layers[:index] + self.layers[index + 1:])
+
+    def replace_layer(self, layer_name: str, values: Mapping[str, object]) -> 'GameConfig':
+        if not isinstance(layer_name, str):
+            raise TypeError("The parameter 'layer_name' must have a type 'str'")
+        index = next((i for i in range(len(self.layers)) if self.layers[i].name == layer_name), None)
+        if index is None:
+            raise KeyError(f'Layer named {layer_name} does not exist.')
+        replace_layer = ConfigLayer(layer_name, values)
+        return GameConfig(self.layers[:index] + (replace_layer, ) + self.layers[index+1:])
+
+    def source_of(self, key: str) -> str:
+        if not isinstance(key, str):
+            raise TypeError("The parameter 'key' must have a type 'str'")
+        result = next((layer.name for layer in reversed(self.layers) if key in layer.values), None)
+        if result is None:
+            raise KeyError(f'Key named {key} does not exist.')
+        return result
     
     def _merge_internal(self, other: 'GameConfig') -> 'GameConfig':
         return GameConfig(self.layers + other.layers)
+    
