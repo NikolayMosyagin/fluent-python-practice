@@ -510,6 +510,3 @@ def test_source_of_game_config(layer1: ConfigLayer, layer5: ConfigLayer, layer6:
     nconfig = config.with_overrides('layer2', {'fullscreen': False})
     res = nconfig.source_of('fullscreen')
     assert res == 'layer2'
-
-
-

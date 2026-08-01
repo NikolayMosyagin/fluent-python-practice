@@ -22,6 +22,57 @@ class ConfigLayer:
 
 
 @dataclass(frozen=True, init=False)
+class ConfigDiff:
+    added: frozenset[str]
+    removed: frozenset[str]
+    changed: frozenset[str]
+    unchanged: frozenset[str]
+
+    def __init__(
+        self, 
+        added: Iterable[str] | None = None, 
+        removed: Iterable[str] | None = None, 
+        changed: Iterable[str] | None = None, 
+        unchanged: Iterable[str] | None = None
+    ):
+        self._update_attributes('added', added)
+        self._update_attributes('removed', removed)
+        self._update_attributes('changed', changed)
+        self._update_attributes('unchanged', unchanged)
+        if self._is_intersect():
+            raise ValueError("Attributes 'added', 'removed', 'changed', 'unchanged'  must not overlap")
+
+    def _update_attributes(self, name: str, value: Iterable[str] | None):
+        if value is None:
+            object.__setattr__(self, name, frozenset())
+        elif not isinstance(value, Iterable):
+            raise TypeError(f"The parameter {name!r} must have a type 'Iterable[str]' or 'None'")
+        else:
+            final_added = frozenset(value)
+            if not all(isinstance(key, str) for key in final_added):
+                raise TypeError(f"All {name!r} elements must be of type 'str'")
+            if not all(key != '' for key in final_added):
+                raise ValueError("The keys of parameter 'value' must not be empty")
+            object.__setattr__(self, name, final_added)
+
+    def _is_intersect(self) -> bool:
+        return (bool(self.added & self.removed) or bool(self.added & self.changed) or bool(self.added & self.unchanged)
+                or bool(self.removed & self.changed) or bool(self.removed & self.unchanged)
+                or bool(self.changed & self.unchanged))
+
+    @property
+    def all_keys(self) -> frozenset[str]:
+        return self.added | self.removed | self.changed | self.unchanged
+    
+    @property
+    def has_changes(self) -> bool:
+        return len(self.added) > 0 or len(self.removed) > 0 or len(self.changed) > 0
+
+    def __bool__(self) -> bool:
+        return self.has_changes
+
+
+@dataclass(frozen=True, init=False)
 class GameConfig(Mapping[str, object]):
     data: MappingProxyType[str, object]
     layers: tuple[ConfigLayer, ...]
@@ -128,6 +179,15 @@ class GameConfig(Mapping[str, object]):
         if result is None:
             raise KeyError(f'Key named {key} does not exist.')
         return result
+
+    def diff(self, other: 'GameConfig') -> ConfigDiff:
+        return ConfigDiff(
+            added=self.added_keys(other),
+            removed=self.removed_keys(other),
+            changed=self.changed_keys(other),
+            unchanged=self.unchanged_keys(other)
+        )
+
     
     def _merge_internal(self, other: 'GameConfig') -> 'GameConfig':
         return GameConfig(self.layers + other.layers)
