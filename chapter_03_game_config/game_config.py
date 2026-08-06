@@ -1,13 +1,14 @@
-from collections.abc import Mapping, Iterable
-from types import MappingProxyType
+from collections.abc import Mapping, Iterable, Iterator
 from dataclasses import dataclass
+from types import MappingProxyType, NotImplementedType
+
 
 @dataclass(frozen=True)
 class ConfigLayer:
     name: str
     values: Mapping[str, object]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.name, str):
             raise TypeError("The parameter 'name' must have a type 'str'")
         if self.name == '':
@@ -34,31 +35,36 @@ class ConfigDiff:
         removed: Iterable[str] | None = None, 
         changed: Iterable[str] | None = None, 
         unchanged: Iterable[str] | None = None
-    ):
+    ) -> None:
         self._update_attributes('added', added)
         self._update_attributes('removed', removed)
         self._update_attributes('changed', changed)
         self._update_attributes('unchanged', unchanged)
-        if self._is_intersect():
-            raise ValueError("Attributes 'added', 'removed', 'changed', 'unchanged'  must not overlap")
+        if self._has_intersections():
+            raise ValueError(
+                "Attributes 'added', 'removed', 'changed', and 'unchanged' "
+                "must not overlap"
+            )
 
-    def _update_attributes(self, name: str, value: Iterable[str] | None):
+    def _update_attributes(self, name: str, value: Iterable[str] | None) -> None:
         if value is None:
             object.__setattr__(self, name, frozenset())
-        elif not isinstance(value, Iterable):
+        elif not isinstance(value, Iterable) or isinstance(value, str):
             raise TypeError(f"The parameter {name!r} must have a type 'Iterable[str]' or 'None'")
         else:
-            final_added = frozenset(value)
-            if not all(isinstance(key, str) for key in final_added):
+            final_values = frozenset(value)
+            if not all(isinstance(key, str) for key in final_values):
                 raise TypeError(f"All {name!r} elements must be of type 'str'")
-            if not all(key != '' for key in final_added):
+            if not all(key != '' for key in final_values):
                 raise ValueError("The keys of parameter 'value' must not be empty")
-            object.__setattr__(self, name, final_added)
+            object.__setattr__(self, name, final_values)
 
-    def _is_intersect(self) -> bool:
-        return (bool(self.added & self.removed) or bool(self.added & self.changed) or bool(self.added & self.unchanged)
-                or bool(self.removed & self.changed) or bool(self.removed & self.unchanged)
-                or bool(self.changed & self.unchanged))
+    def _has_intersections(self) -> bool:
+        return (
+            bool(self.added & self.removed) or bool(self.added & self.changed) or 
+            bool(self.added & self.unchanged) or bool(self.removed & self.changed) or 
+            bool(self.removed & self.unchanged) or bool(self.changed & self.unchanged)
+        )
 
     @property
     def all_keys(self) -> frozenset[str]:
@@ -77,7 +83,7 @@ class GameConfig(Mapping[str, object]):
     data: MappingProxyType[str, object]
     layers: tuple[ConfigLayer, ...]
 
-    def __init__(self, layers: Iterable[ConfigLayer] | None = None):
+    def __init__(self, layers: Iterable[ConfigLayer] | None = None) -> None:
         if layers is None: 
             object.__setattr__(self, 'data', MappingProxyType({}))
             object.__setattr__(self, 'layers', tuple())
@@ -102,13 +108,13 @@ class GameConfig(Mapping[str, object]):
     def __getitem__(self, key: str) -> object:
         return self.data[key]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         return iter(self.data)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
-    def __or__(self, other: 'GameConfig') -> 'GameConfig':
+    def __or__(self, other: 'GameConfig') -> 'GameConfig | NotImplementedType':
         if not isinstance(other, GameConfig):
             return NotImplemented
         return self._merge_internal(other)
@@ -131,7 +137,7 @@ class GameConfig(Mapping[str, object]):
 
     def unchanged_keys(self, other: 'GameConfig') -> frozenset[str]:
         if not isinstance(other, GameConfig):
-           raise TypeError("The parameter 'other' must have a type 'GameConfig'")
+            raise TypeError("The parameter 'other' must have a type 'GameConfig'")
         shared_keys = self.keys() & other.keys()
         return frozenset(key for key in shared_keys if self[key] == other[key])
 
@@ -141,10 +147,10 @@ class GameConfig(Mapping[str, object]):
     def get_layer(self, name: str) -> ConfigLayer:
         if not isinstance(name, str):
             raise TypeError("The parameter 'name' must have a type 'str'")
-        result = next((layer for layer in self.layers if layer.name == name), None)
-        if result is None:
+        index = self._get_layer_index_by_name(name)
+        if index is None:
             raise KeyError(f'Layer named {name} does not exist.')
-        return result
+        return self.layers[index]
 
     def with_overrides(self, name: str, values: Mapping[str, object]) -> 'GameConfig':
         layer = ConfigLayer(name, values)
@@ -158,7 +164,7 @@ class GameConfig(Mapping[str, object]):
     def without_layer(self, layer_name: str) -> 'GameConfig':
         if not isinstance(layer_name, str):
             raise TypeError("The parameter 'layer_name' must have a type 'str'")
-        index = next((i for i in range(len(self.layers)) if self.layers[i].name == layer_name), None)
+        index = self._get_layer_index_by_name(layer_name)
         if index is None:
             raise KeyError(f'Layer named {layer_name} does not exist.')
         return GameConfig(self.layers[:index] + self.layers[index + 1:])
@@ -166,11 +172,15 @@ class GameConfig(Mapping[str, object]):
     def replace_layer(self, layer_name: str, values: Mapping[str, object]) -> 'GameConfig':
         if not isinstance(layer_name, str):
             raise TypeError("The parameter 'layer_name' must have a type 'str'")
-        index = next((i for i in range(len(self.layers)) if self.layers[i].name == layer_name), None)
+        index = self._get_layer_index_by_name(layer_name)
         if index is None:
             raise KeyError(f'Layer named {layer_name} does not exist.')
-        replace_layer = ConfigLayer(layer_name, values)
-        return GameConfig(self.layers[:index] + (replace_layer, ) + self.layers[index+1:])
+        replacement_layer = ConfigLayer(layer_name, values)
+        return GameConfig(
+            self.layers[:index] 
+            + (replacement_layer,) 
+            + self.layers[index + 1:]
+        )
 
     def source_of(self, key: str) -> str:
         if not isinstance(key, str):
@@ -187,8 +197,17 @@ class GameConfig(Mapping[str, object]):
             changed=self.changed_keys(other),
             unchanged=self.unchanged_keys(other)
         )
-
     
     def _merge_internal(self, other: 'GameConfig') -> 'GameConfig':
         return GameConfig(self.layers + other.layers)
+
+    def _get_layer_index_by_name(self, layer_name: str) -> int | None:
+        return next(
+            (
+                index for index, layer in enumerate(self.layers)
+                if layer.name == layer_name
+            ), 
+            None,
+        )
+
     
